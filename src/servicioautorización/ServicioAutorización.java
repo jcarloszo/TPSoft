@@ -5,7 +5,12 @@
  */
 package servicioautorización;
 
+import fev1.dif.afip.gov.ar.AlicIva;
+import fev1.dif.afip.gov.ar.ArrayOfAlicIva;
+import fev1.dif.afip.gov.ar.ArrayOfCbteAsoc;
 import fev1.dif.afip.gov.ar.ArrayOfFECAEDetRequest;
+import fev1.dif.afip.gov.ar.ArrayOfTributo;
+import fev1.dif.afip.gov.ar.CbteAsoc;
 import fev1.dif.afip.gov.ar.FEAuthRequest;
 import fev1.dif.afip.gov.ar.FECAEAGetResponse;
 import fev1.dif.afip.gov.ar.FECAECabRequest;
@@ -14,6 +19,7 @@ import fev1.dif.afip.gov.ar.FECAERequest;
 import fev1.dif.afip.gov.ar.FECAEResponse;
 import fev1.dif.afip.gov.ar.FEParamGetTiposMonedas;
 import fev1.dif.afip.gov.ar.FERecuperaLastCbteResponse;
+import fev1.dif.afip.gov.ar.Tributo;
 import org.datacontract.schemas._2004._07.sge_service_contracts.Autorizacion;
 
 /**
@@ -40,7 +46,7 @@ public class ServicioAutorización {
         auth.setSign(autorizacion.getSign().getValue());
         auth.setToken(autorizacion.getToken().getValue());
         
-        FERecuperaLastCbteResponse ultimoComp = feCompUltimoAutorizado(auth, 12, 6);
+        FERecuperaLastCbteResponse ultimoComp = feCompUltimoAutorizado(auth, 12, 1);
         System.out.print("cbte numero: " + ultimoComp.getCbteNro());
         System.out.print("\ncbte tipo: " + ultimoComp.getCbteTipo());
         
@@ -48,35 +54,86 @@ public class ServicioAutorización {
         FECAERequest request = new FECAERequest();
         FECAECabRequest feCabReq = new FECAECabRequest();
         feCabReq.setPtoVta(12);
-        feCabReq.setCbteTipo(6);
-        feCabReq.setCantReg(5);
+        feCabReq.setCbteTipo(1);
+        feCabReq.setCantReg(1);
         request.setFeCabReq(feCabReq);
-        
-        ArrayOfFECAEDetRequest arrayOfFeDetReq = new ArrayOfFECAEDetRequest();
         
         FECAEDetRequest feDetReq = new FECAEDetRequest();
         feDetReq.setConcepto(1);
-        feDetReq.setDocTipo(86);
-        feDetReq.setDocNro(20417369253L);
-        feDetReq.setCbteDesde(1);
-        feDetReq.setCbteHasta(99999999);
-        feDetReq.setImpTotal(5000);
-        feDetReq.setImpTotConc(3000);
-        feDetReq.setImpNeto(2000);
-        feDetReq.setImpOpEx(1000);
-        feDetReq.setImpIVA(100);
-        feDetReq.setImpTrib(200);
+        feDetReq.setDocTipo(80);
+        feDetReq.setDocNro(20111111112L);
+        feDetReq.setCbteDesde(ultimoComp.getCbteNro()+1);
+        feDetReq.setCbteHasta(ultimoComp.getCbteNro()+1);
+        feDetReq.setCbteFch("20220318");
+        feDetReq.setImpTotal(184.05);
+        /*
+        184.05 =
+        150 de impuesto neto
+        7.8 de impuesto tributario
+        26.5 de iva total
+        */
+        feDetReq.setImpTotConc(0);
+        feDetReq.setImpNeto(150);
+        feDetReq.setImpOpEx(0);
+        feDetReq.setImpIVA(26.25);
+        feDetReq.setImpTrib(7.8);
         feDetReq.setMonId("PES");
         feDetReq.setMonCotiz(1);
         
-        arrayOfFeDetReq.getFECAEDetRequest().add(feDetReq);
+        //DETALLE DE IMP TRIBUTARIO
+        Tributo tributo = new Tributo();
+        short idTrib = 99;
+        tributo.setId(idTrib);
+        tributo.setDesc("Desc de prueba");
+        tributo.setBaseImp(150);
+        tributo.setAlic(5.2);
+        tributo.setImporte(7.8);
         
+        ArrayOfTributo arrayOfTributo = new ArrayOfTributo();
+        arrayOfTributo.getTributo().add(tributo);
+        feDetReq.setTributos(arrayOfTributo);
+        
+        //DETALLE DE ALICUOTAS IVA
+        AlicIva alicuota1 = new AlicIva();
+        alicuota1.setId(5);
+        alicuota1.setBaseImp(100);
+        alicuota1.setImporte(21);
+        AlicIva alicuota2 = new AlicIva();
+        alicuota2.setId(4);
+        alicuota2.setBaseImp(50);
+        alicuota2.setImporte(5.25);
+        
+        ArrayOfAlicIva arrayOfAlicIva = new ArrayOfAlicIva();
+        arrayOfAlicIva.getAlicIva().add(alicuota1);
+        arrayOfAlicIva.getAlicIva().add(alicuota2);
+        feDetReq.setIva(arrayOfAlicIva);
+        
+        //COMPROBANTES RELACIONADOS
+        /*
+        ArrayOfCbteAsoc arrayOfCbteAsoc = new ArrayOfCbteAsoc();
+        
+        CbteAsoc cbteAsoc = new CbteAsoc();
+        cbteAsoc.setTipo(1);
+        cbteAsoc.setPtoVta(12);
+        cbteAsoc.setNro(1L);
+        
+        arrayOfCbteAsoc.getCbteAsoc().add(cbteAsoc);
+        feDetReq.setCbtesAsoc(arrayOfCbteAsoc);
+        */
+
+        
+        //AGREGO EL DETALLE DE COMPROBANTE AL LOTE
+        ArrayOfFECAEDetRequest arrayOfFeDetReq = new ArrayOfFECAEDetRequest();
+        arrayOfFeDetReq.getFECAEDetRequest().add(feDetReq);
         request.setFeDetReq(arrayOfFeDetReq);
         
         
         
+        //LLAMO A FECAESOLICITAR
         FECAEResponse fecaeResponse = fecaeSolicitar(auth, request);
+        //System.out.println("\n"+fecaeResponse.getErrors());
         System.out.println("\n"+fecaeResponse.getFeCabResp().getResultado());
+        System.out.println("\n"+fecaeResponse.getFeDetResp().getFECAEDetResponse().get(0).getObservaciones().getObs().get(0).getMsg());
         
     }
 
